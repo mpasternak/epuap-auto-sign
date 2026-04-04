@@ -213,6 +213,7 @@ uv run ruff check src/ tests/
 ## Ograniczenia i uwagi
 
 - **Interakcja użytkownika wymagana**: dwa kody SMS (logowanie + podpis) muszą być wpisane ręcznie w terminalu.
+- **Automatyzacja odczytu SMS**: istnieje eksperymentalny projekt [chrome-messages-reader](https://github.com/mpasternak/chrome-messages-reader), który miał wyciągać kody SMS z Google Messages for Web działającego w Chrome. W praktyce okazało się to trudne do niezawodnej realizacji — integracja pozostaje otwarta.
 - **Format wyjściowy**: domyślnie PDF (`_signed.pdf`). Jeśli portal zwróci inny format, skrypt dopasuje rozszerzenie.
 - **Zmiany strony gov.pl**: selektory są oparte na analizie obecnej wersji portalu. Jeśli `podpis.gov.pl` zmieni strukturę HTML, może być konieczna aktualizacja selektorów w modułach `browser.py`, `login.py`, `signature.py`.
 - **Reverse engineering**: rozwiązanie bazuje na automatyzacji przeglądarki, nie oficjalnym API. Oficjalne SOAP API (TpSigning2/3) wymaga rejestracji systemu zewnętrznego i certyfikatu X.509, a do tego podpisuje tylko pliki XML.
@@ -220,7 +221,7 @@ uv run ruff check src/ tests/
 
 ## Ciąg dalszy (TODO)
 
-- [ ] Automatyczny odczyt kodu SMS z aplikacji Google Messages (Chrome LocalStorage).
+- [ ] Automatyczny odczyt kodu SMS — patrz eksperymentalny [chrome-messages-reader](https://github.com/mpasternak/chrome-messages-reader).
 - [ ] Obsługa wielu plików w jednej sesji (batch mode).
 - [ ] Tryb headless dla zaawansowanych użytkowników.
 - [ ] Wsparcie dla innych metod podpisu (Certyfikat kwalifikowany, e-dowód).
