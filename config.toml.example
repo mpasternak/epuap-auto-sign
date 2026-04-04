@@ -1,0 +1,23 @@
+[credentials]
+username = "twoj_login"
+password = "twoje_haslo"
+
+[signature]
+# Domyslna pozycja znaku graficznego podpisu (procenty strony)
+# Uzywana gdy plik nie pasuje do zadnego wzorca w [signatures]
+x = 50
+y = 66
+
+# Pozycje podpisu per plik lub wzorzec sciezki (glob/fnmatch).
+# Pierwsza pasujaca reguła wygrywa.
+# Skrypt automatycznie zapisuje pozycje po recznym ustawieniu.
+#
+# Przyklady:
+#
+# [signatures."/Users/jan/dokumenty/faktura*.pdf"]
+# x = 70.0
+# y = 85.0
+#
+# [signatures."/Users/jan/dokumenty/protokol*.pdf"]
+# x = 50.0
+# y = 66.0
