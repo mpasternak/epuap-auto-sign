@@ -11,6 +11,9 @@ SMS_REFIND_TIMEOUT_MS = 10_000
 # Timeout pojedynczej akcji click/fill na polu kodu - zamiast domyslnych 30 s
 # Playwrighta, zeby szybko oddac kontrole uzytkownikowi przy problemie.
 FIELD_ACTION_TIMEOUT_MS = 5_000
+# Timeout probnego klikniecia (trial) sprawdzajacego, czy pole nie jest
+# przykryte np. backdropem modala. Krotki, bo wykonywany w petli pollingu.
+FIELD_TRIAL_TIMEOUT_MS = 1_000
 
 DEFAULT_SIG_X_PCT = 50.0
 DEFAULT_SIG_Y_PCT = 66.0

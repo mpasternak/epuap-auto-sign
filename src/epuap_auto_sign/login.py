@@ -35,18 +35,14 @@ SMS_CODE_SELECTORS = [
     'input[name*="kod"]',
     'input[name*="code"]',
     'input[name*="otp"]',
+    'input[name*="sms"]',
     'input[id*="kod"]',
     'input[id*="code"]',
     'input[id*="otp"]',
-    'input[type="text"]',
+    'input[id*="sms"]',
+    'input[autocomplete="one-time-code"]',
     'input[type="tel"]',
-]
-
-# Generyczne selektory z SMS_CODE_SELECTORS (input[type="text"]) pasuja tez
-# do pola username na formularzu logowania. Widoczne pole hasla oznacza,
-# ze to wciaz strona logowania - nie formularz kodu SMS.
-LOGIN_FORM_MARKERS = [
-    'input[type="password"]',
+    'input[type="text"]',
 ]
 
 CONFIRM_BUTTON_SELECTORS = [
@@ -120,9 +116,10 @@ def handle_sms_code(
         True jeśli kod został wprowadzony i zatwierdzony.
     """
     logger.info("Czekam na formularz kodu autoryzacyjnego (%s)...", label)
-    code_field = find_visible_input(
-        page, SMS_CODE_SELECTORS, timeout_ms, reject_selectors=LOGIN_FORM_MARKERS
-    )
+    # Kod SMS na pz.gov.pl pojawia sie w modalu NAD formularzem logowania -
+    # pola loginu/hasla pod backdropem wciaz sa "widoczne" dla Playwrighta.
+    # require_fillable odsiewa je: pole kodu musi byc puste i klikalne.
+    code_field = find_visible_input(page, SMS_CODE_SELECTORS, timeout_ms, require_fillable=True)
 
     if not code_field:
         logger.info("Nie wykryto formularza kodu %s.", label)
@@ -140,7 +137,7 @@ def handle_sms_code(
     # zmienić - locator znaleziony przed promptem może wskazywać element,
     # którego już nie ma. Szukamy pola od nowa na aktualnej stronie.
     code_field = find_visible_input(
-        page, SMS_CODE_SELECTORS, SMS_REFIND_TIMEOUT_MS, reject_selectors=LOGIN_FORM_MARKERS
+        page, SMS_CODE_SELECTORS, SMS_REFIND_TIMEOUT_MS, require_fillable=True
     )
     if not code_field:
         logger.warning("Pole kodu %s zniknelo ze strony. Wpisz kod recznie w przegladarce.", label)

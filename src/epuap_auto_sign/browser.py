@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from .constants import POLL_INTERVAL_MS, STEP_TIMEOUT_MS
+from .constants import FIELD_TRIAL_TIMEOUT_MS, POLL_INTERVAL_MS, STEP_TIMEOUT_MS
 
 logger = logging.getLogger(__name__)
 
@@ -51,47 +51,44 @@ def wait_and_click(
     return False
 
 
-def _any_visible(page, selectors: list[str]) -> bool:
-    """Sprawdza, czy którykolwiek z selektorów pasuje do widocznego elementu."""
-    for selector in selectors:
-        try:
-            if page.locator(selector).first.is_visible():
-                return True
-        except Exception:
-            # Element w trakcie przebudowy DOM - traktujemy jako niewidoczny.
-            logger.debug("Nie udalo sie sprawdzic widocznosci %s", selector, exc_info=True)
-    return False
-
-
 def find_visible_input(
     page,
     selectors: list[str],
     timeout_ms: int = STEP_TIMEOUT_MS,
-    reject_selectors: list[str] | None = None,
+    require_fillable: bool = False,
 ):
     """Odpytuje stronę szukając widocznego pola input.
 
     Args:
-        reject_selectors: Jeśli którykolwiek z tych selektorów jest widoczny,
-            strona jest uznawana za niewłaściwą (np. wciąż widać formularz
-            logowania) i dopasowania w tej iteracji są pomijane -
-            polling trwa dalej.
+        require_fillable: Zwracaj tylko pola puste i klikalne (sprawdzane
+            próbnym kliknięciem). Odsiewa pola innego formularza pod
+            backdropem modala - np. wypełnione pole loginu, które
+            is_visible() wciąż raportuje jako widoczne, bo Playwright
+            nie uwzględnia przykrycia elementu przy teście widoczności.
 
     Returns:
         Locator znalezionego pola lub None.
     """
     elapsed = 0
     while elapsed < timeout_ms:
-        if not (reject_selectors and _any_visible(page, reject_selectors)):
-            for selector in selectors:
-                field = page.locator(selector).first
-                try:
-                    if field.is_visible():
-                        return field
-                except Exception:
-                    # Element w trakcie przebudowy DOM - probujemy nastepny selektor.
-                    logger.debug("Nie udalo sie sprawdzic widocznosci %s", selector, exc_info=True)
+        for selector in selectors:
+            field = page.locator(selector).first
+            try:
+                if not field.is_visible():
                     continue
+                if require_fillable:
+                    if field.input_value(timeout=FIELD_TRIAL_TIMEOUT_MS).strip():
+                        # Pole ma juz wartosc (np. wpisany login) - to nie pole kodu.
+                        continue
+                    # Probne klikniecie rzuca TimeoutError, gdy pole jest
+                    # przykryte (np. backdropem modala) - bez klikania.
+                    field.click(trial=True, timeout=FIELD_TRIAL_TIMEOUT_MS)
+                return field
+            except Exception:
+                # Element zniknal, jest przykryty albo DOM w przebudowie -
+                # probujemy nastepny selektor / nastepna iteracje pollingu.
+                logger.debug("Selektor %s odrzucony", selector, exc_info=True)
+                continue
         page.wait_for_timeout(POLL_INTERVAL_MS)
         elapsed += POLL_INTERVAL_MS
     return None
