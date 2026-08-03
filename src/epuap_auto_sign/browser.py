@@ -51,21 +51,47 @@ def wait_and_click(
     return False
 
 
-def find_visible_input(page, selectors: list[str], timeout_ms: int = STEP_TIMEOUT_MS):
+def _any_visible(page, selectors: list[str]) -> bool:
+    """Sprawdza, czy którykolwiek z selektorów pasuje do widocznego elementu."""
+    for selector in selectors:
+        try:
+            if page.locator(selector).first.is_visible():
+                return True
+        except Exception:
+            # Element w trakcie przebudowy DOM - traktujemy jako niewidoczny.
+            logger.debug("Nie udalo sie sprawdzic widocznosci %s", selector, exc_info=True)
+    return False
+
+
+def find_visible_input(
+    page,
+    selectors: list[str],
+    timeout_ms: int = STEP_TIMEOUT_MS,
+    reject_selectors: list[str] | None = None,
+):
     """Odpytuje stronę szukając widocznego pola input.
+
+    Args:
+        reject_selectors: Jeśli którykolwiek z tych selektorów jest widoczny,
+            strona jest uznawana za niewłaściwą (np. wciąż widać formularz
+            logowania) i dopasowania w tej iteracji są pomijane -
+            polling trwa dalej.
 
     Returns:
         Locator znalezionego pola lub None.
     """
     elapsed = 0
     while elapsed < timeout_ms:
-        for selector in selectors:
-            field = page.locator(selector).first
-            try:
-                if field.is_visible():
-                    return field
-            except Exception:
-                continue
+        if not (reject_selectors and _any_visible(page, reject_selectors)):
+            for selector in selectors:
+                field = page.locator(selector).first
+                try:
+                    if field.is_visible():
+                        return field
+                except Exception:
+                    # Element w trakcie przebudowy DOM - probujemy nastepny selektor.
+                    logger.debug("Nie udalo sie sprawdzic widocznosci %s", selector, exc_info=True)
+                    continue
         page.wait_for_timeout(POLL_INTERVAL_MS)
         elapsed += POLL_INTERVAL_MS
     return None

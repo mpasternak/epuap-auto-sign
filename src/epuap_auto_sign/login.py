@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from .browser import find_visible_input, wait_and_click
-from .constants import STEP_TIMEOUT_MS
+from .constants import FIELD_ACTION_TIMEOUT_MS, SMS_REFIND_TIMEOUT_MS, STEP_TIMEOUT_MS
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,13 @@ SMS_CODE_SELECTORS = [
     'input[id*="otp"]',
     'input[type="text"]',
     'input[type="tel"]',
+]
+
+# Generyczne selektory z SMS_CODE_SELECTORS (input[type="text"]) pasuja tez
+# do pola username na formularzu logowania. Widoczne pole hasla oznacza,
+# ze to wciaz strona logowania - nie formularz kodu SMS.
+LOGIN_FORM_MARKERS = [
+    'input[type="password"]',
 ]
 
 CONFIRM_BUTTON_SELECTORS = [
@@ -113,7 +120,9 @@ def handle_sms_code(
         True jeśli kod został wprowadzony i zatwierdzony.
     """
     logger.info("Czekam na formularz kodu autoryzacyjnego (%s)...", label)
-    code_field = find_visible_input(page, SMS_CODE_SELECTORS, timeout_ms)
+    code_field = find_visible_input(
+        page, SMS_CODE_SELECTORS, timeout_ms, reject_selectors=LOGIN_FORM_MARKERS
+    )
 
     if not code_field:
         logger.info("Nie wykryto formularza kodu %s.", label)
@@ -127,8 +136,23 @@ def handle_sms_code(
         logger.warning("Nie podano kodu. Wpisz recznie w przegladarce.")
         return False
 
-    code_field.click()
-    code_field.fill(sms_code)
+    # W czasie gdy użytkownik czekał na SMS i wpisywał kod, strona mogła się
+    # zmienić - locator znaleziony przed promptem może wskazywać element,
+    # którego już nie ma. Szukamy pola od nowa na aktualnej stronie.
+    code_field = find_visible_input(
+        page, SMS_CODE_SELECTORS, SMS_REFIND_TIMEOUT_MS, reject_selectors=LOGIN_FORM_MARKERS
+    )
+    if not code_field:
+        logger.warning("Pole kodu %s zniknelo ze strony. Wpisz kod recznie w przegladarce.", label)
+        return False
+
+    try:
+        code_field.click(timeout=FIELD_ACTION_TIMEOUT_MS)
+        code_field.fill(sms_code, timeout=FIELD_ACTION_TIMEOUT_MS)
+    except Exception:
+        logger.exception("Nie udalo sie wpisac kodu %s. Wpisz kod recznie w przegladarce.", label)
+        return False
+
     logger.info("Wpisano kod autoryzacyjny (%s).", label)
 
     wait_and_click(page, CONFIRM_BUTTON_SELECTORS, "Potwierdź")
