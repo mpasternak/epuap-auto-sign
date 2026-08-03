@@ -6,6 +6,7 @@ import pytest
 
 from epuap_auto_sign.signature import (
     calculate_current_percentage,
+    calculate_scroll_delta,
     calculate_target_position,
 )
 
@@ -89,6 +90,35 @@ class TestCalculateCurrentPercentage:
         boundary = {"x": 0, "y": 0, "width": 1000, "height": 1000}
         result = calculate_current_percentage(sig, boundary)
         assert result == (0.0, 100.0)
+
+
+class TestCalculateScrollDelta:
+    """Obliczanie przewiniecia potrzebnego, by zakres pionowy [top, bottom]
+    (wspolrzedne viewportu) zmiescil sie w widocznym obszarze okna."""
+
+    def test_zakres_widoczny_bez_przewijania(self):
+        """Zakres w calosci w oknie (z marginesem) -> brak przewijania."""
+        assert calculate_scroll_delta(100, 500, viewport_height=700) == 0.0
+
+    def test_zakres_ponizej_okna_przewija_w_dol(self):
+        """Zakres pod dolna krawedzia -> dodatnie przewiniecie centrujace."""
+        # srodek zakresu 850, srodek okna 350 -> scroll o 500 w dol
+        assert calculate_scroll_delta(800, 900, viewport_height=700) == 500.0
+
+    def test_zakres_powyzej_okna_przewija_w_gore(self):
+        """Zakres nad gorna krawedzia -> ujemne przewiniecie."""
+        # srodek zakresu -50, srodek okna 350 -> scroll o 400 w gore
+        assert calculate_scroll_delta(-100, 0, viewport_height=700) == -400.0
+
+    def test_zakres_wyzszy_niz_okno_jest_centrowany(self):
+        """Zakres nie miesci sie w oknie -> najlepsze co mozna: centrowanie."""
+        # srodek zakresu 700, srodek okna 350 -> scroll o 350
+        assert calculate_scroll_delta(0, 1400, viewport_height=700) == 350.0
+
+    def test_zakres_zbyt_blisko_krawedzi_wyzwala_przewijanie(self):
+        """Punkt blizej krawedzi niz margines -> przewijamy mimo 'widocznosci'."""
+        delta = calculate_scroll_delta(10, 300, viewport_height=700, margin=40)
+        assert delta == pytest.approx((10 + 300) / 2 - 350)
 
 
 class TestRoundtrip:

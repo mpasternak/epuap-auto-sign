@@ -15,6 +15,16 @@ FIELD_ACTION_TIMEOUT_MS = 5_000
 # przykryte np. backdropem modala. Krotki, bo wykonywany w petli pollingu.
 FIELD_TRIAL_TIMEOUT_MS = 1_000
 
+# Rozmiar okna przegladarki (realne okno OS, nie emulowany viewport).
+# Wysokie okno pozwala zmiescic caly podglad dokumentu bez przewijania -
+# warunek dzialania przeciagania podpisu myszka (macOS przytnie okno
+# do wysokosci ekranu, jesli jest nizszy).
+BROWSER_WINDOW_WIDTH = 1280
+BROWSER_WINDOW_HEIGHT = 2000
+
+# Margines od krawedzi okna przy sprawdzaniu, czy punkty draga sa widoczne.
+SCROLL_MARGIN_PX = 40
+
 DEFAULT_SIG_X_PCT = 50.0
 DEFAULT_SIG_Y_PCT = 66.0
 DEFAULT_SIGN_METHOD = "Profil zaufany"

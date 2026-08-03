@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .browser import wait_and_click
 from .config import save_signature_position
+from .constants import SCROLL_MARGIN_PX
 
 logger = logging.getLogger(__name__)
 
@@ -81,6 +82,25 @@ def calculate_current_percentage(sig_box: dict, boundary_box: dict) -> tuple[flo
     return (x_pct, y_pct)
 
 
+def calculate_scroll_delta(
+    span_top: float,
+    span_bottom: float,
+    viewport_height: float,
+    margin: float = SCROLL_MARGIN_PX,
+) -> float:
+    """Oblicza pionowe przewinięcie potrzebne, by zakres [span_top, span_bottom]
+    (współrzędne viewportu) znalazł się w widocznym obszarze okna.
+
+    Returns:
+        0.0 jeśli zakres jest już widoczny (z marginesem). W przeciwnym razie
+        przesunięcie centrujące zakres w oknie (dodatnie = przewiń w dół).
+        Zakres wyższy niż okno też jest centrowany - lepszego wyboru nie ma.
+    """
+    if span_top >= margin and span_bottom <= viewport_height - margin:
+        return 0.0
+    return (span_top + span_bottom) / 2 - viewport_height / 2
+
+
 def read_current_signature_pct(page) -> tuple[float, float] | None:
     """Odczytuje aktualną pozycję podpisu na stronie jako procenty."""
     sig_element = page.locator("#signature")
@@ -96,6 +116,21 @@ def read_current_signature_pct(page) -> tuple[float, float] | None:
         return None
 
     return calculate_current_percentage(sig_box, boundary_box)
+
+
+def get_viewport_height(page) -> float | None:
+    """Zwraca wysokość widocznego obszaru strony w pikselach.
+
+    W trybie no_viewport (realne okno OS) viewport_size jest None -
+    wtedy pytamy przeglądarkę o window.innerHeight.
+    """
+    if page.viewport_size:
+        return float(page.viewport_size["height"])
+    try:
+        return float(page.evaluate("() => window.innerHeight"))
+    except Exception:
+        logger.debug("Nie udalo sie odczytac wysokosci okna", exc_info=True)
+        return None
 
 
 def drag_signature(page, src_x: float, src_y: float, target_x: float, target_y: float) -> None:
@@ -168,6 +203,15 @@ def adjust_signature_position(
         prompt_func("\n*** Nie znaleziono kontenera. Nacisnij ENTER aby kontynuowac: ")
         return
 
+    # page.mouse operuje na wspolrzednych viewportu - element poza widocznym
+    # obszarem okna jest dla draga nieosiagalny. Najpierw przewijamy podglad
+    # do widoku, wspolrzedne czytamy dopiero po przewinieciu.
+    try:
+        boundary.scroll_into_view_if_needed(timeout=5_000)
+        page.wait_for_timeout(300)
+    except Exception:
+        logger.debug("Nie udalo sie przewinac podgladu do widoku", exc_info=True)
+
     sig_box = sig_element.bounding_box()
     boundary_box = boundary.bounding_box()
 
@@ -185,6 +229,35 @@ def adjust_signature_position(
 
     src_x = sig_box["x"] + sig_box["width"] / 2
     src_y = sig_box["y"] + sig_box["height"] / 2
+
+    # Jesli punkt startu lub celu wypada poza oknem (np. cel na dole
+    # dokumentu wyzszego niz okno), dosuwamy scroll i liczymy od nowa.
+    viewport_height = get_viewport_height(page)
+    if viewport_height:
+        delta = calculate_scroll_delta(
+            min(src_y, target_y) - sig_box["height"] / 2,
+            max(src_y, target_y) + sig_box["height"] / 2,
+            viewport_height,
+        )
+        if delta:
+            page.evaluate("(dy) => window.scrollBy(0, dy)", delta)
+            page.wait_for_timeout(300)
+            sig_box = sig_element.bounding_box()
+            boundary_box = boundary.bounding_box()
+            if not sig_box or not boundary_box:
+                logger.warning("Nie udalo sie odczytac pozycji po przewinieciu.")
+                prompt_func("\n*** Nie udalo sie odczytac pozycji. Nacisnij ENTER: ")
+                return
+            target_x, target_y = calculate_target_position(
+                boundary_box, sig_box["width"], sig_box["height"], sig_x_pct, sig_y_pct
+            )
+            src_x = sig_box["x"] + sig_box["width"] / 2
+            src_y = sig_box["y"] + sig_box["height"] / 2
+        if not (0 <= src_y <= viewport_height and 0 <= target_y <= viewport_height):
+            logger.warning(
+                "Podpis lub cel poza widocznym obszarem okna - "
+                "drag moze nie zadzialac, w razie czego ustaw pozycje recznie."
+            )
 
     logger.info(
         "Przeciagam podpis: (%.0f, %.0f) -> (%.0f, %.0f) [cel: %.0f%% x %.0f%%]",

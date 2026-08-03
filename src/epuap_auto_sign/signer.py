@@ -16,6 +16,8 @@ from .config import (
     resolve_config_path,
 )
 from .constants import (
+    BROWSER_WINDOW_HEIGHT,
+    BROWSER_WINDOW_WIDTH,
     DEFAULT_SIG_X_PCT,
     DEFAULT_SIG_Y_PCT,
     DEFAULT_SIGN_METHOD,
@@ -91,8 +93,18 @@ def sign_pdf(
     sig_x_pct, sig_y_pct = get_signature_position(config, pdf_path, sig_x_pct, sig_y_pct)
 
     with sync_playwright() as pw:
-        browser = pw.chromium.launch(headless=headless)
-        context = browser.new_context(accept_downloads=True)
+        browser = pw.chromium.launch(
+            headless=headless,
+            args=[
+                # Wysokie okno: caly podglad dokumentu widoczny bez przewijania,
+                # co jest warunkiem dzialania przeciagania podpisu myszka.
+                f"--window-size={BROWSER_WINDOW_WIDTH},{BROWSER_WINDOW_HEIGHT}",
+                "--window-position=0,0",
+            ],
+        )
+        # no_viewport: strona uzywa realnego rozmiaru okna zamiast
+        # emulowanego viewportu 1280x720.
+        context = browser.new_context(accept_downloads=True, no_viewport=True)
         page = context.new_page()
 
         # Nasłuchiwanie na event download
